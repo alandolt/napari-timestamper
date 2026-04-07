@@ -255,10 +255,10 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
 
             if not self.overlay.display_on_scene:
                 self.anchor_correction = 0
-                y_max, x_max = self.viewer.window.qt_viewer.canvas.size
+                y_max, x_max = self.viewer.window._qt_viewer.canvas.size
 
                 self.node.parent = (
-                    self.viewer.window.qt_viewer.canvas.view
+                    self.viewer.window._qt_viewer.canvas.view
                 )  # this is a bit ugly and circumvents the overlay system which is not ideal but it works
             else:
                 self.anchor_correction = 0.5
@@ -280,7 +280,7 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
                     y_max += y_max_offset
 
                 self.node.parent = (
-                    self.viewer.window.qt_viewer.canvas.view.scene
+                    self.viewer.window._qt_viewer.canvas.view.scene
                 )  # this is a bit ugly and circumvents the overlay system which is not ideal but it works
 
         if position == CanvasPosition.TOP_LEFT:
@@ -305,7 +305,7 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
             ]
         elif position == CanvasPosition.TOP_CENTER:
             transform = [
-                x_max / 2 - self.x_size / 2,
+                x_max / 2 - self.x_size / 2 + self.x_spacer,
                 self.y_spacer - self.anchor_correction * max_layer_scale,
                 0,
                 0,
@@ -340,7 +340,7 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
         elif position == CanvasPosition.BOTTOM_CENTER:
             anchors = ("center", "top")
             transform = [
-                x_max / 2 - self.x_size / 2,
+                x_max / 2 - self.x_size / 2 + self.x_spacer,
                 y_max
                 - self.y_size
                 - self.y_spacer
@@ -352,6 +352,12 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
         self.node.transform.translate = transform
         self.node.anchors = anchors
         self.node._rectagles_visual.spacer = self.overlay.x_spacer
+        if self.viewer.dims.ndisplay == 3 and self.overlay.display_on_scene:
+            self.node.show_background = False
+            self.node.show_outline = False
+        else:
+            self.node.show_background = self.overlay.show_background
+            self.node.show_outline = self.overlay.show_outline
         box_width = (
             x_max + 1 * max_layer_scale
             if self.overlay.display_on_scene
@@ -370,49 +376,27 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
         """
         Callback function for when the size of the overlay is changed.
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            if (
-                self.overlay.scale_with_zoom
-                and self.node.parent
-                is self.viewer.window.qt_viewer.canvas.view.scene
-            ):
-                self.node.scale_factor = self.camera_scaling_factor
-                self.node.font_size = self.overlay.size
-                self.node.outline_thickness = self.overlay.outline_thickness
-                self.node.rectangles_scale_factor = 1
+        on_scene = self.overlay.display_on_scene
 
-            elif (
-                not self.overlay.scale_with_zoom
-                and self.node.parent
-                is self.viewer.window.qt_viewer.canvas.view
-            ):
-                self.node.scale_factor = 1
-                self.node.font_size = self.overlay.size
-                self.node.outline_thickness = self.overlay.outline_thickness
-                self.node.rectangles_scale_factor = 1
+        if self.overlay.scale_with_zoom and on_scene:
+            self.node.scale_factor = self.camera_scaling_factor
+            self.node.rectangles_scale_factor = 1
+        elif not self.overlay.scale_with_zoom and not on_scene:
+            self.node.scale_factor = 1
+            self.node.rectangles_scale_factor = 1
+        elif not self.overlay.scale_with_zoom and on_scene:
+            self.node.scale_factor = 1
+            self.node.rectangles_scale_factor = (
+                1 / self.camera_scaling_factor
+                if self.camera_scaling_factor
+                else 1
+            )
+        elif self.overlay.scale_with_zoom and not on_scene:
+            self.node.scale_factor = self.camera_scaling_factor
+            self.node.rectangles_scale_factor = self.camera_scaling_factor
 
-            elif (
-                not self.overlay.scale_with_zoom
-                and self.node.parent
-                is self.viewer.window.qt_viewer.canvas.view.scene
-            ):
-                self.node.scale_factor = 1
-                self.node.rectangles_scale_factor = (
-                    1 / self.camera_scaling_factor
-                )
-                self.node.outline_thickness = self.overlay.outline_thickness
-                self.node.font_size = self.overlay.size
-
-            elif (
-                self.overlay.scale_with_zoom
-                and self.node.parent
-                is self.viewer.window.qt_viewer.canvas.view
-            ):
-                self.node.scale_factor = self.camera_scaling_factor
-                self.node.rectangles_scale_factor = self.camera_scaling_factor
-                self.node.outline_thickness = self.overlay.outline_thickness
-                self.node.font_size = self.overlay.size
+        self.node.font_size = self.overlay.size
+        self.node.outline_thickness = self.overlay.outline_thickness
 
         self._on_position_change()
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import napari
 from napari._vispy.utils.visual import overlay_to_visual
 from napari.components._viewer_constants import CanvasPosition
+from napari.layers import labels
 from qtpy import QtCore, QtGui, QtWidgets
 from qtpy.QtCore import Slot
 from qtpy.QtWidgets import (
@@ -105,8 +106,8 @@ class TimestampWidget(QtWidgets.QWidget):
         self.gridLayout = QtWidgets.QGridLayout()
 
         self.time_axis_label = QtWidgets.QLabel("Time Axis")
-        self.time_axis = QtWidgets.QSpinBox()
-        self.time_axis.setRange(-10, 10)
+        self.time_axis = QtWidgets.QComboBox()
+        self._update_time_axis_combobox()
 
         self.start_time_label = QtWidgets.QLabel("Start Time")
         self.start_time = QtWidgets.QSpinBox()
@@ -342,7 +343,9 @@ class TimestampWidget(QtWidgets.QWidget):
         timestamp_overlay.time_format = self.time_format.currentText()
         timestamp_overlay.x_spacer = self.x_shift.value()
         timestamp_overlay.y_spacer = self.y_shift.value()
-        timestamp_overlay.time_axis = self.time_axis.value()
+        time_axis = self.time_axis.currentData()
+        if time_axis is not None:
+            timestamp_overlay.time_axis = time_axis
         timestamp_overlay.display_on_scene = self.display_on_scene.isChecked()
         timestamp_overlay.scale_with_zoom = self.scale_with_zoom.isChecked()
         timestamp_overlay.bg_color = ColorArray(
@@ -353,9 +356,16 @@ class TimestampWidget(QtWidgets.QWidget):
         timestamp_overlay.outline_color = ColorArray(self.chosen_outline_color)
         timestamp_overlay.outline_thickness = self.outline_size.value()
 
+    def _update_time_axis_combobox(self, event=None):
+        self.time_axis.clear()
+        for i, axis in enumerate(self.viewer.dims.axis_labels[:-2]):
+            if axis is not None:
+                self.time_axis.addItem(axis, i)
+        if self.time_axis.count() > 0:
+            self.time_axis.setCurrentIndex(0)
+
     def _connect_all_changes(self):
         for i in [
-            self.time_axis,
             self.start_time,
             self.step_time,
             self.ts_size,
@@ -365,8 +375,14 @@ class TimestampWidget(QtWidgets.QWidget):
             i.valueChanged.connect(self._set_timestamp_overlay_options)
         for i in [self.prefix, self.suffix]:
             i.textChanged.connect(self._set_timestamp_overlay_options)
-        for i in [self.position, self.time_format]:
+        for i in [self.position, self.time_format, self.time_axis]:
             i.currentTextChanged.connect(self._set_timestamp_overlay_options)
+        self.viewer.layers.events.inserted.connect(
+            self._update_time_axis_combobox
+        )
+        self.viewer.layers.events.removed.connect(
+            self._update_time_axis_combobox
+        )
         self.toggle_timestamp.clicked.connect(self._toggle_overlay)
 
         self.color.clicked.connect(self._open_color_dialog)
@@ -970,6 +986,100 @@ class LayertoRGBWidget(QWidget):
             for layer_idx, layer in temporary_removed_layers.items():
                 self.viewer.layers.insert(layer_idx, layer)
         return rendered_image
+
+
+class SplitStackWidget(QWidget):
+    def __init__(self, viewer: napari.viewer.Viewer, parent=None):
+        super().__init__(parent)
+        self.viewer = viewer
+
+        self.layout = QVBoxLayout(self)
+
+        self.layer_label = QLabel("Layer:", self)
+        self.layout.addWidget(self.layer_label)
+
+        self.layer_combobox = QComboBox(self)
+        self.layout.addWidget(self.layer_combobox)
+
+        self.axis_label = QLabel("Split Axis:", self)
+        self.layout.addWidget(self.axis_label)
+
+        self.axis_combobox = QComboBox(self)
+        self.layout.addWidget(self.axis_combobox)
+
+        self.split_button = QPushButton("Split", self)
+        self.layout.addWidget(self.split_button)
+
+        self.spacer = QtWidgets.QSpacerItem(
+            20,
+            40,
+            QtWidgets.QSizePolicy.Minimum,
+            QtWidgets.QSizePolicy.Expanding,
+        )
+        self.layout.addItem(self.spacer)
+
+        self._update_layer_combobox()
+        self._connect_slots()
+
+    def _connect_slots(self):
+        self.viewer.layers.events.inserted.connect(
+            self._update_layer_combobox
+        )
+        self.viewer.layers.events.removed.connect(
+            self._update_layer_combobox
+        )
+        self.layer_combobox.currentIndexChanged.connect(
+            self._update_axis_combobox
+        )
+        self.split_button.clicked.connect(self._on_split)
+
+    def _update_layer_combobox(self, event=None):
+        self.layer_combobox.clear()
+        for layer in self.viewer.layers:
+            self.layer_combobox.addItem(layer.name)
+        self._update_axis_combobox()
+
+    def _update_axis_combobox(self, event=None):
+        self.axis_combobox.clear()
+        idx = self.layer_combobox.currentIndex()
+        if idx < 0 or idx >= len(self.viewer.layers):
+            return
+        layer = self.viewer.layers[idx]
+        ndim = layer.data.ndim
+        axis_labels = self.viewer.dims.axis_labels
+        for i in range(ndim):
+            axis_name = axis_labels[i] if i < len(axis_labels) else str(i)
+            label = f"{axis_name} (size {layer.data.shape[i]})"
+            self.axis_combobox.addItem(label, i)
+
+    def _on_split(self):
+        idx = self.layer_combobox.currentIndex()
+        if idx < 0 or idx >= len(self.viewer.layers):
+            return
+        layer = self.viewer.layers[idx]
+        axis = self.axis_combobox.currentData()
+        if axis is None:
+            return
+        data = layer.data
+        base_name = layer.name
+        is_labels = isinstance(layer, labels.Labels)
+
+        # collect properties that survive the dimension drop
+        scale = [s for i, s in enumerate(layer.scale) if i != axis]
+        translate = [t for i, t in enumerate(layer.translate) if i != axis]
+
+        kwargs = {"scale": scale, "translate": translate}
+        if not is_labels:
+            kwargs["contrast_limits"] = layer.contrast_limits
+            kwargs["colormap"] = layer.colormap.name
+            kwargs["blending"] = layer.blending
+
+        add_fn = self.viewer.add_labels if is_labels else self.viewer.add_image
+        for i in range(data.shape[axis]):
+            slicing = tuple(
+                slice(None) if a != axis else i for a in range(data.ndim)
+            )
+            add_fn(data[slicing], name=f"{base_name}_{i}", **kwargs)
 
 
 if __name__ == "__main__":
