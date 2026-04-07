@@ -492,24 +492,32 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         self.toggle_visibility_button.setCheckable(True)
         self.toggle_visibility_button.setChecked(True)
 
+        # Layer selector
+        self.layer_selector_label = QtWidgets.QLabel("Annotate Layers")
+        self.layer_selector = QListWidget()
+        self._update_layer_selector()
+
         # Adding Widgets to Layout
-        self.gridLayout.addWidget(self.size_label, 0, 0)
-        self.gridLayout.addWidget(self.size_slider, 0, 1)
+        self.gridLayout.addWidget(self.layer_selector_label, 0, 0)
+        self.gridLayout.addWidget(self.layer_selector, 0, 1)
 
-        self.gridLayout.addWidget(self.position_label, 1, 0)
-        self.gridLayout.addWidget(self.position_combobox, 1, 1)
+        self.gridLayout.addWidget(self.size_label, 1, 0)
+        self.gridLayout.addWidget(self.size_slider, 1, 1)
 
-        self.gridLayout.addWidget(self.xy_offset_label, 2, 0)
-        self.gridLayout.addLayout(self.offset_layout, 2, 1)
+        self.gridLayout.addWidget(self.position_label, 2, 0)
+        self.gridLayout.addWidget(self.position_combobox, 2, 1)
 
-        self.gridLayout.addWidget(self.toggle_visibility_button, 10, 0, 1, 2)
+        self.gridLayout.addWidget(self.xy_offset_label, 3, 0)
+        self.gridLayout.addLayout(self.offset_layout, 3, 1)
+
+        self.gridLayout.addWidget(self.toggle_visibility_button, 11, 0, 1, 2)
 
         # Choose wether to use layer color or custom color by ticking the checkbox
         self.color_checkbox = QtWidgets.QCheckBox(
             "Use Colormap for Image Layers"
         )
         self.color_checkbox.setChecked(True)
-        self.gridLayout.addWidget(self.color_checkbox, 4, 0)
+        self.gridLayout.addWidget(self.color_checkbox, 5, 0)
 
         # Color Picker
         self.color = QtWidgets.QPushButton("Choose Color")
@@ -518,21 +526,21 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         )  # Update button icon
 
         # Adding Color Picker to Layout
-        self.gridLayout.addWidget(self.color, 4, 1)
+        self.gridLayout.addWidget(self.color, 5, 1)
 
         # Add Checkbox for bold and italic
         self.bold_checkbox = QtWidgets.QCheckBox("Bold")
         self.bold_checkbox.setChecked(False)
-        self.gridLayout.addWidget(self.bold_checkbox, 5, 0)
+        self.gridLayout.addWidget(self.bold_checkbox, 6, 0)
 
         self.italic_checkbox = QtWidgets.QCheckBox("Italic")
         self.italic_checkbox.setChecked(False)
-        self.gridLayout.addWidget(self.italic_checkbox, 5, 1)
+        self.gridLayout.addWidget(self.italic_checkbox, 6, 1)
 
         # Choose wether to use layer color or custom color by ticking the checkbox
         self.bgcolor_checkbox = QtWidgets.QCheckBox("Show Background Color")
         self.bgcolor_checkbox.setChecked(False)
-        self.gridLayout.addWidget(self.bgcolor_checkbox, 6, 0)
+        self.gridLayout.addWidget(self.bgcolor_checkbox, 7, 0)
 
         # Color Picker
         self.bgcolor = QtWidgets.QPushButton("Choose Color")
@@ -541,7 +549,7 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         )  # Update button icon
 
         # Adding Color Picker to Layout
-        self.gridLayout.addWidget(self.bgcolor, 6, 1)
+        self.gridLayout.addWidget(self.bgcolor, 7, 1)
 
         # opacity Slider
         self.opacity_label = QtWidgets.QLabel("Background Opacity")
@@ -551,8 +559,8 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         self.opacity_slider.setValue(100)
 
         # Adding Widgets to Layout
-        self.gridLayout.addWidget(self.opacity_label, 7, 0)
-        self.gridLayout.addWidget(self.opacity_slider, 7, 1)
+        self.gridLayout.addWidget(self.opacity_label, 8, 0)
+        self.gridLayout.addWidget(self.opacity_slider, 8, 1)
 
         # Choose wether to show outline or not
         self.outline_checkbox = QtWidgets.QCheckBox("Show Outline")
@@ -566,8 +574,8 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         )  # Update button icon
 
         # Adding Widgets to Layout
-        self.gridLayout.addWidget(self.outline_checkbox, 8, 0)
-        self.gridLayout.addWidget(self.outline_color, 8, 1)
+        self.gridLayout.addWidget(self.outline_checkbox, 9, 0)
+        self.gridLayout.addWidget(self.outline_color, 9, 1)
 
         # set outline size
         self.outline_size_label = QtWidgets.QLabel("Outline Size")
@@ -576,8 +584,8 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         self.outline_size.setValue(0.2)
 
         # Adding Widgets to Layout
-        self.gridLayout.addWidget(self.outline_size_label, 9, 0)
-        self.gridLayout.addWidget(self.outline_size, 9, 1)
+        self.gridLayout.addWidget(self.outline_size_label, 10, 0)
+        self.gridLayout.addWidget(self.outline_size, 10, 1)
 
         self.spacer = QtWidgets.QSpacerItem(
             20,
@@ -585,7 +593,7 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
             QtWidgets.QSizePolicy.Minimum,
             QtWidgets.QSizePolicy.Expanding,
         )
-        self.gridLayout.addItem(self.spacer, 11, 0, 1, 2)
+        self.gridLayout.addItem(self.spacer, 12, 0, 1, 2)
 
         # Set the layout to the widget
         self.setLayout(self.gridLayout)
@@ -599,6 +607,49 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
         self.bgcolor_checkbox.stateChanged.connect(
             self._on_background_color_combobox_change
         )
+        self.viewer.layers.events.inserted.connect(
+            self._update_layer_selector
+        )
+        self.viewer.layers.events.removed.connect(
+            self._update_layer_selector
+        )
+        self.layer_selector.itemChanged.connect(
+            self._on_layer_selection_changed
+        )
+
+    def _update_layer_selector(self, event=None):
+        self.layer_selector.blockSignals(True)
+        selected = self._get_selected_layer_names()
+        self.layer_selector.clear()
+        for layer in self.viewer.layers:
+            item = QListWidgetItem(layer.name)
+            if layer.name in selected or not selected:
+                item.setCheckState(QtCore.Qt.Checked)
+            else:
+                item.setCheckState(QtCore.Qt.Unchecked)
+            self.layer_selector.addItem(item)
+        self.layer_selector.blockSignals(False)
+        self._on_layer_selection_changed()
+
+    def _get_selected_layer_names(self):
+        return {
+            self.layer_selector.item(i).text()
+            for i in range(self.layer_selector.count())
+            if self.layer_selector.item(i).checkState() == QtCore.Qt.Checked
+        }
+
+    def _on_layer_selection_changed(self, item=None):
+        if not self.overlay_set:
+            return
+        canvas = self.viewer.window._qt_viewer.canvas
+        vispy_overlays = canvas._overlay_to_visual.get(
+            self.layer_annotator_overlay, []
+        )
+        if vispy_overlays:
+            vispy_overlays[0].selected_layer_names = (
+                self._get_selected_layer_names()
+            )
+            vispy_overlays[0]._update_annotations()
 
     def _update_color_button_icon(self, color_button, color_str):
         pixmap = QtGui.QPixmap(20, 20)  # Create a QPixmap of size 20x20

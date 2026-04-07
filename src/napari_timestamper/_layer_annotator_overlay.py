@@ -97,6 +97,7 @@ class VispyLayerAnnotatorOverlay(ViewerOverlayMixin, VispySceneOverlay):
 
     RECTANGLE_SCALER = 3
     ANCHOR_CORRECTION = 0.5
+    selected_layer_names = None  # None means all layers
 
     def __init__(self, *, viewer, overlay, parent=None, **kwargs):
         super().__init__(
@@ -202,41 +203,48 @@ class VispyLayerAnnotatorOverlay(ViewerOverlayMixin, VispySceneOverlay):
         layer_translations.reverse()  # Reverse order to match layer order
 
         for i, layer in enumerate(self.viewer.layers[::-1]):
-            if layer.visible:
-                layers_to_annotate["layer_names"].append(layer.name)
-                layers_to_annotate["hidden_outlines"].append(
-                    self._outlines_to_hide(i, len(self.viewer.layers))
-                )
+            if not layer.visible:
+                continue
+            if (
+                self.selected_layer_names is not None
+                and layer.name not in self.selected_layer_names
+            ):
+                continue
 
-                # Get color information
-                if isinstance(layer, labels.Labels):
+            layers_to_annotate["layer_names"].append(layer.name)
+            layers_to_annotate["hidden_outlines"].append(
+                self._outlines_to_hide(i, len(self.viewer.layers))
+            )
+
+            # Get color information
+            if isinstance(layer, labels.Labels):
+                layers_to_annotate["colors"].append(self.overlay.color)
+            else:
+                try:
+                    layers_to_annotate["colors"].append(
+                        layer.colormap.colors[-1]
+                    )
+                except AttributeError:
                     layers_to_annotate["colors"].append(self.overlay.color)
-                else:
-                    try:
-                        layers_to_annotate["colors"].append(
-                            layer.colormap.colors[-1]
-                        )
-                    except AttributeError:
-                        layers_to_annotate["colors"].append(self.overlay.color)
 
-                # Update offsets based on grid position
-                grid_offset = layer_translations[i]
+            # Update offsets based on grid position
+            grid_offset = layer_translations[i]
 
-                # Apply layer scale to offsets
-                layer_scale = getattr(layer, "scale", 1.0)[-1]
+            # Apply layer scale to offsets
+            layer_scale = getattr(layer, "scale", 1.0)[-1]
 
-                layers_to_annotate["y_offsets"].append(grid_offset[-2])
-                layers_to_annotate["x_offsets"].append(grid_offset[-1])
-                layers_to_annotate["layer_scales"].append(layer_scale)
+            layers_to_annotate["y_offsets"].append(grid_offset[-2])
+            layers_to_annotate["x_offsets"].append(grid_offset[-1])
+            layers_to_annotate["layer_scales"].append(layer_scale)
 
-                # Apply scale to layer widths as well
-                if not isinstance(layer, (Image, labels.Labels)):
-                    extent = self.viewer._sliced_extent_world_augmented
-                    width = extent[1][-2] - extent[0][-2]
-                    layers_to_annotate["layer_widths"].append(width)
-                else:
-                    width = layer.data.shape[-2:][1]
-                    layers_to_annotate["layer_widths"].append(width)
+            # Apply scale to layer widths as well
+            if not isinstance(layer, (Image, labels.Labels)):
+                extent = self.viewer._sliced_extent_world_augmented
+                width = extent[1][-2] - extent[0][-2]
+                layers_to_annotate["layer_widths"].append(width)
+            else:
+                width = layer.data.shape[-2:][1]
+                layers_to_annotate["layer_widths"].append(width)
 
         # Convert colors to ColorArray
         try:
