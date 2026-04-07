@@ -257,9 +257,9 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
                 self.anchor_correction = 0
                 y_max, x_max = self.viewer.window._qt_viewer.canvas.size
 
-                self.node.parent = (
+                target_parent = (
                     self.viewer.window._qt_viewer.canvas.view
-                )  # this is a bit ugly and circumvents the overlay system which is not ideal but it works
+                )
             else:
                 self.anchor_correction = 0.5
                 x_max, y_max = (
@@ -279,9 +279,12 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
                     x_max += x_max_offset
                     y_max += y_max_offset
 
-                self.node.parent = (
+                target_parent = (
                     self.viewer.window._qt_viewer.canvas.view.scene
-                )  # this is a bit ugly and circumvents the overlay system which is not ideal but it works
+                )
+
+            if self.node.parent is not target_parent:
+                self.node.parent = target_parent
 
         if position == CanvasPosition.TOP_LEFT:
             anchors = ("left", "bottom")
