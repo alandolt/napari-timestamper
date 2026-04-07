@@ -81,14 +81,11 @@ def test_add_overlay_to_viewer(make_napari_viewer):
         try:
             viewer._overlays["LayerAnnotator"]
         except KeyError:
-            viewer._overlays["LayerAnnotator"] = LayerAnnotatorOverlay(
-                visible=True
-            )
             overlay_to_visual[
                 LayerAnnotatorOverlay
             ] = VispyLayerAnnotatorOverlay
-            viewer.window._qt_viewer.canvas._add_overlay_to_visual(
-                viewer._overlays["LayerAnnotator"]
+            viewer._overlays["LayerAnnotator"] = LayerAnnotatorOverlay(
+                visible=True
             )
         layer_annotator_overlay = viewer._overlays["LayerAnnotator"]
 

@@ -18,6 +18,7 @@ from typing import Literal
 from napari._vispy.overlays.base import ViewerOverlayMixin, VispySceneOverlay
 from napari.components.overlays import SceneOverlay
 from napari.layers import Image, labels
+from pydantic import ConfigDict
 from vispy.color import ColorArray
 from vispy.visuals.transforms import STTransform
 
@@ -62,6 +63,8 @@ class LayerAnnotatorOverlay(SceneOverlay):
     Timestamp Overlay.
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     color: str = "white"
     use_layer_color: bool = False
     size: int = 12
@@ -95,7 +98,7 @@ class VispyLayerAnnotatorOverlay(ViewerOverlayMixin, VispySceneOverlay):
     RECTANGLE_SCALER = 2
     ANCHOR_CORRECTION = 0.5
 
-    def __init__(self, *, viewer, overlay, parent=None):
+    def __init__(self, *, viewer, overlay, parent=None, **kwargs):
         super().__init__(
             node=TextWithBoxVisual(
                 text=overlay.layers_to_annotate["layer_names"],
@@ -108,6 +111,7 @@ class VispyLayerAnnotatorOverlay(ViewerOverlayMixin, VispySceneOverlay):
             viewer=viewer,
             overlay=overlay,
             parent=parent,
+            **kwargs,
         )
         self.camera_scale_factor = 1
         self.x_spacer = self.overlay.x_spacer

@@ -79,12 +79,9 @@ class TimestampWidget(QtWidgets.QWidget):
             try:
                 self.viewer._overlays["timestamp"]
             except KeyError:
+                overlay_to_visual[TimestampOverlay] = VispyTimestampOverlay
                 self.viewer._overlays["timestamp"] = TimestampOverlay(
                     visible=True
-                )
-                overlay_to_visual[TimestampOverlay] = VispyTimestampOverlay
-                self.viewer.window._qt_viewer.canvas._add_overlay_to_visual(
-                    self.viewer._overlays["timestamp"]
                 )
             self.timestamp_overlay = self.viewer._overlays["timestamp"]
             self._set_timestamp_overlay_options()
@@ -433,15 +430,12 @@ class LayerAnnotationsWidget(QtWidgets.QWidget):
             try:
                 self.viewer._overlays["LayerAnnotator"]
             except KeyError:
-                self.viewer._overlays[
-                    "LayerAnnotator"
-                ] = LayerAnnotatorOverlay(visible=True)
                 overlay_to_visual[
                     LayerAnnotatorOverlay
                 ] = VispyLayerAnnotatorOverlay
-                self.viewer.window._qt_viewer.canvas._add_overlay_to_visual(
-                    self.viewer._overlays["LayerAnnotator"]
-                )
+                self.viewer._overlays[
+                    "LayerAnnotator"
+                ] = LayerAnnotatorOverlay(visible=True)
             self.layer_annotator_overlay = self.viewer._overlays[
                 "LayerAnnotator"
             ]

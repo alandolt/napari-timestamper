@@ -23,6 +23,7 @@ from napari.components._viewer_constants import CanvasPosition
 from napari.components.overlays import SceneOverlay
 from napari.utils.color import ColorValue
 from napari.utils.events import disconnect_events
+from pydantic import ConfigDict
 from vispy.color import ColorArray
 from vispy.visuals.transforms import STTransform
 
@@ -34,6 +35,8 @@ class TimestampOverlay(SceneOverlay):
     """
     Timestamp Overlay.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     color: ColorValue = (0, 1, 0, 1)
     size: int = 10
@@ -141,7 +144,7 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
     Vispy Timestamp Overlay.
     """
 
-    def __init__(self, *, viewer, overlay, parent=None):
+    def __init__(self, *, viewer, overlay, parent=None, **kwargs):
         super().__init__(
             node=TextWithBoxVisual(
                 text=overlay.text,
@@ -152,6 +155,7 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
             viewer=viewer,
             overlay=overlay,
             parent=parent,
+            **kwargs,
         )
         self.anchor_correction = 0.5
         self.y_spacer = self.overlay.y_spacer
@@ -177,7 +181,6 @@ class VispyTimestampOverlay(ViewerOverlayMixin, VispySceneOverlay):
         self.overlay.events.outline_color.connect(self._on_text_change)
         self.overlay.events.outline_thickness.connect(self._on_text_change)
 
-        self.overlay.events.text.connect(self._on_text_change)
         self.overlay.events.y_spacer.connect(self._update_offsets)
         self.overlay.events.x_spacer.connect(self._update_offsets)
         self.overlay.events.time_format.connect(self._on_text_change)
