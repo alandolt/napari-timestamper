@@ -1007,6 +1007,12 @@ class SplitStackWidget(QWidget):
         self.axis_combobox = QComboBox(self)
         self.layout.addWidget(self.axis_combobox)
 
+        self.remove_original_checkbox = QtWidgets.QCheckBox(
+            "Remove original layer"
+        )
+        self.remove_original_checkbox.setChecked(True)
+        self.layout.addWidget(self.remove_original_checkbox)
+
         self.split_button = QPushButton("Split", self)
         self.layout.addWidget(self.split_button)
 
@@ -1080,6 +1086,9 @@ class SplitStackWidget(QWidget):
                 slice(None) if a != axis else i for a in range(data.ndim)
             )
             add_fn(data[slicing], name=f"{base_name}_{i}", **kwargs)
+
+        if self.remove_original_checkbox.isChecked():
+            self.viewer.layers.remove(layer)
 
 
 if __name__ == "__main__":
